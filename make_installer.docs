@@ -1,0 +1,8 @@
+pyinstaller --onefile --windowed --noconsole --name="Argus SSH" --icon=icon.ico main.py
+
+--onefile
+--windowed یا --noconsole
+--name="Argus SSH"
+--icon=icon.ico
+
+pyinstaller --onefile --windowed --noconsole --name="Argus_SSH" --version-file=version.txt --icon=icon.ico main.py
