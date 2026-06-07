@@ -212,16 +212,43 @@ class ToastNotification(QWidget):
         QTimer.singleShot(3500, self.anim_out.start)
 
 
+class ProcessFetcher(QThread):
+    data_fetched = pyqtSignal(list)
+    error_occurred = pyqtSignal(str)
+
+    def __init__(self, ssh_client):
+        super().__init__()
+        self.ssh_client = ssh_client
+
+    def run(self):
+        try:
+            # Using grep '[p]ython' is a trick to exclude the grep process itself
+            command = "ps aux | grep '[p]ython'"
+            stdin, stdout, stderr = self.ssh_client.exec_command(command)
+            output = stdout.read().decode('utf-8').strip()
+            
+            processes = []
+            for line in output.split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split(None, 10)
+                if len(parts) >= 11:
+                    processes.append(parts)
+            self.data_fetched.emit(processes)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
+
+
 class PythonMonitorDialog(QDialog):
     """
     New Dialog for Python Process Monitoring
-    Shows a clean list of running python apps with Stop and Restart capabilities.
+    Shows a clean list of running python apps with Stop, Restart, and Pause/Resume capabilities.
     """
     def __init__(self, parent, ssh_client):
         super().__init__(parent)
         self.ssh_client = ssh_client
         self.setWindowTitle("Python Apps Monitoring")
-        self.setMinimumSize(850, 450)
+        self.setMinimumSize(950, 500)
         
         self.layout = QVBoxLayout(self)
         
@@ -231,6 +258,7 @@ class PythonMonitorDialog(QDialog):
         
         self.refresh_btn = QPushButton("🔄 Refresh List")
         self.refresh_btn.setCursor(Qt.PointingHandCursor)
+        self.refresh_btn.setStyleSheet("padding: 6px 15px; font-weight: bold; border-radius: 4px;")
         self.refresh_btn.clicked.connect(self.refresh_data)
         
         header_layout.addWidget(title)
@@ -240,12 +268,15 @@ class PythonMonitorDialog(QDialog):
         self.layout.addLayout(header_layout)
         
         # Table setup
-        self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["PID", "CPU%", "RAM%", "Command", "Actions"])
+        self.table = QTableWidget(0, 6)
+        self.table.setHorizontalHeaderLabels(["PID", "CPU%", "RAM%", "Status", "Command", "Actions"])
         self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
+        
+        # INCREASED ROW HEIGHT TO FIX SQUISHED BUTTONS
+        self.table.verticalHeader().setDefaultSectionSize(50) 
         
         self.layout.addWidget(self.table)
         
@@ -256,66 +287,91 @@ class PythonMonitorDialog(QDialog):
         if not self.ssh_client:
             return
             
-        self.table.setRowCount(0)
         self.refresh_btn.setText("⏳ Refreshing...")
         self.refresh_btn.setEnabled(False)
-        QApplication.processEvents()
         
-        try:
-            # Using grep '[p]ython' is a trick to exclude the grep process itself
-            command = "ps aux | grep '[p]ython'"
-            stdin, stdout, stderr = self.ssh_client.exec_command(command)
-            output = stdout.read().decode('utf-8').strip()
+        # Start background thread to prevent UI freezing
+        self.fetcher = ProcessFetcher(self.ssh_client)
+        self.fetcher.data_fetched.connect(self.on_data_fetched)
+        self.fetcher.error_occurred.connect(self.on_error_occurred)
+        self.fetcher.start()
+
+    def on_error_occurred(self, error_msg):
+        QMessageBox.warning(self, "Error", f"Failed to fetch processes:\n{error_msg}")
+        self.refresh_btn.setText("🔄 Refresh List")
+        self.refresh_btn.setEnabled(True)
+
+    def on_data_fetched(self, processes):
+        self.table.setRowCount(0)
+        
+        for parts in processes:
+            user, pid, cpu, mem, vsz, rss, tty, stat, start, time, cmd = parts
             
-            lines = output.split('\n')
-            for line in lines:
-                if not line.strip():
-                    continue
-                parts = line.split(None, 10)
-                if len(parts) >= 11:
-                    user, pid, cpu, mem, vsz, rss, tty, stat, start, time, cmd = parts
-                    
-                    row = self.table.rowCount()
-                    self.table.insertRow(row)
-                    
-                    self.table.setItem(row, 0, QTableWidgetItem(pid))
-                    self.table.setItem(row, 1, QTableWidgetItem(f"{cpu}%"))
-                    self.table.setItem(row, 2, QTableWidgetItem(f"{mem}%"))
-                    self.table.setItem(row, 3, QTableWidgetItem(cmd))
-                    
-                    # Action buttons
-                    action_widget = QWidget()
-                    action_layout = QHBoxLayout(action_widget)
-                    action_layout.setContentsMargins(4, 2, 4, 2)
-                    action_layout.setSpacing(6)
-                    
-                    stop_btn = QPushButton("⏹ Stop")
-                    stop_btn.setCursor(Qt.PointingHandCursor)
-                    stop_btn.setStyleSheet("background-color: #8b1e1e; color: white;")
-                    stop_btn.clicked.connect(lambda checked, p=pid: self.kill_process(p))
-                    
-                    restart_btn = QPushButton("🔄 Restart")
-                    restart_btn.setCursor(Qt.PointingHandCursor)
-                    restart_btn.setStyleSheet("background-color: #2e7d32; color: white;")
-                    restart_btn.clicked.connect(lambda checked, p=pid, c=cmd: self.restart_process(p, c))
-                    
-                    action_layout.addWidget(stop_btn)
-                    action_layout.addWidget(restart_btn)
-                    self.table.setCellWidget(row, 4, action_widget)
-                    
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"Failed to fetch processes:\n{e}")
+            row = self.table.rowCount()
+            self.table.insertRow(row)
+            
+            # Check if process is stopped/paused (STAT contains 'T')
+            is_paused = 'T' in stat
+            status_text = "⏸ Paused" if is_paused else "▶️ Running"
+            
+            self.table.setItem(row, 0, QTableWidgetItem(pid))
+            self.table.setItem(row, 1, QTableWidgetItem(f"{cpu}%"))
+            self.table.setItem(row, 2, QTableWidgetItem(f"{mem}%"))
+            self.table.setItem(row, 3, QTableWidgetItem(status_text))
+            self.table.setItem(row, 4, QTableWidgetItem(cmd))
+            
+            # Action buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(6, 4, 6, 4)
+            action_layout.setSpacing(8)
+            
+            # Shared elegant button style
+            btn_base_style = "padding: 8px 12px; border-radius: 5px; font-weight: bold; border: none;"
+            
+            pause_btn = QPushButton("▶️ Resume" if is_paused else "⏸ Pause")
+            pause_btn.setCursor(Qt.PointingHandCursor)
+            pause_btn.setStyleSheet(btn_base_style + ("background-color: #2980b9; color: white;" if is_paused else "background-color: #d35400; color: white;"))
+            pause_btn.clicked.connect(lambda checked, p=pid, paused=is_paused: self.toggle_pause(p, paused))
+            
+            stop_btn = QPushButton("⏹ Stop")
+            stop_btn.setCursor(Qt.PointingHandCursor)
+            stop_btn.setStyleSheet(btn_base_style + "background-color: #c0392b; color: white;")
+            stop_btn.clicked.connect(lambda checked, p=pid: self.kill_process(p))
+            
+            restart_btn = QPushButton("🔄 Restart")
+            restart_btn.setCursor(Qt.PointingHandCursor)
+            restart_btn.setStyleSheet(btn_base_style + "background-color: #27ae60; color: white;")
+            restart_btn.clicked.connect(lambda checked, p=pid, c=cmd: self.restart_process(p, c))
+            
+            action_layout.addWidget(pause_btn)
+            action_layout.addWidget(stop_btn)
+            action_layout.addWidget(restart_btn)
+            self.table.setCellWidget(row, 5, action_widget)
             
         self.refresh_btn.setText("🔄 Refresh List")
         self.refresh_btn.setEnabled(True)
+
+    def toggle_pause(self, pid, is_paused):
+        action_name = "Resume" if is_paused else "Pause"
+        signal = "-CONT" if is_paused else "-STOP"
+        
+        if QMessageBox.question(self, f"{action_name} Process", f"Are you sure you want to {action_name.lower()} PID {pid}?", QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
+            try:
+                self.ssh_client.exec_command(f"kill {signal} {pid}")
+                if self.parent() and hasattr(self.parent(), "show_toast"):
+                    self.parent().show_toast(f"Process {pid} {action_name.lower()}d.", "info")
+                QTimer.singleShot(500, self.refresh_data)
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Could not {action_name.lower()} process:\n{e}")
 
     def kill_process(self, pid):
         if QMessageBox.question(self, "Stop Process", f"Are you sure you want to stop PID {pid}?", QMessageBox.Yes | QMessageBox.No) == QMessageBox.Yes:
             try:
                 self.ssh_client.exec_command(f"kill -9 {pid}")
-                QTimer.singleShot(500, self.refresh_data) # wait half a sec then refresh
                 if self.parent() and hasattr(self.parent(), "show_toast"):
                     self.parent().show_toast(f"Process {pid} stopped.", "info")
+                QTimer.singleShot(500, self.refresh_data)
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not kill process:\n{e}")
 
@@ -344,8 +400,6 @@ class PythonMonitorDialog(QDialog):
             except Exception as e:
                 QMessageBox.warning(self, "Error", f"Could not restart process:\n{e}")
 
-
-# --- All other dialogs remain unchanged ---
 
 class AddHostDialog(QDialog):
     def __init__(self, parent=None, host: Optional[HostEntry] = None):
