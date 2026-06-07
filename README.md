@@ -1,6 +1,7 @@
 # Argus SSH
+
 <p align="center">
-  <img src="logo.ico" width="150">
+  <img src="logo.ico" width="150" alt="Argus SSH Logo">
 </p>
 
 <h1 align="center">Argus SSH</h1>
@@ -28,9 +29,12 @@ _Add screenshots here after packaging or releasing the project._
 
 ## Project Structure
 
-This repository is currently centered around a single main application file:
+This repository is organized as follows:
 
-- `main9.py` — the main PyQt5 application
+- `main/main.py` — the main PyQt5 application
+- `logo.ico` — project icon
+- `requirements.txt` — Python dependencies
+- `README.md` — project documentation
 
 Runtime data is stored locally here:
 
@@ -50,18 +54,18 @@ Runtime data is stored locally here:
 git clone https://github.com/wtfchampion/Argus-SSH.git
 cd Argus-SSH
 pip install -r requirements.txt
-```
+````
 
 ## Run
 
 ```bash
-python main9.py
+python main/main.py
 ```
 
 On some systems you may need:
 
 ```bash
-python3 main9.py
+python3 main/main.py
 ```
 
 ## How It Works
@@ -75,28 +79,34 @@ python3 main9.py
 ## Feature Notes
 
 ### Saved Hosts
+
 Argus SSH stores your host entries locally so you can reconnect quickly without retyping credentials every time.
 
 ### Terminal
+
 The integrated terminal lets you type directly into the remote shell and keeps the experience close to a real SSH session.
 
 ### SFTP Manager
+
 The SFTP panel supports common file operations and can optionally show hidden files from the settings dialog.
 
 ### Python App Menu
+
 The Python menu is designed for remote `.py` files. It launches scripts in the background and writes output into a log file beside the script.
 
 ### Process Monitoring
+
 The process monitor scans running Python processes and lets you pause, resume, stop, or restart a process from its original working directory.
 
 ### Appearance Settings
+
 The settings dialog allows color customization for the UI, font-size adjustments, and toggling hidden-file visibility.
 
 ## Security Notes
 
-- Host key auto-acceptance is enabled in the current implementation.
-- Credentials and saved host data are stored locally on the machine running the app.
-- Use trusted servers and secure credentials.
+* Host key auto-acceptance is enabled in the current implementation.
+* Credentials and saved host data are stored locally on the machine running the app.
+* Use trusted servers and secure credentials.
 
 ## International-Ready Design
 
@@ -104,18 +114,18 @@ This project is a good fit for an international release because it already follo
 
 Recommended next steps for a global release:
 
-- add translation support with Qt Linguist or a custom i18n layer
-- review all UI strings for consistency and tone
-- replace placeholder branding or wallet text with your final production values
-- add release builds for Windows, Linux, and macOS
+* add translation support with Qt Linguist or a custom i18n layer
+* review all UI strings for consistency and tone
+* replace placeholder branding or wallet text with your final production values
+* add release builds for Windows, Linux, and macOS
 
 ## Roadmap
 
-- stronger host-key verification
-- multi-language support
-- session logging and export
-- improved packaging for cross-platform distribution
-- optional theming presets
+* stronger host-key verification
+* multi-language support
+* session logging and export
+* improved packaging for cross-platform distribution
+* optional theming presets
 
 ## License
 
@@ -123,6 +133,6 @@ Add your preferred license before publishing the project publicly.
 
 ## Credits
 
-Created for **Champ Studio**. , **wtfchampion**
+Created for **Champ Studio** and **wtfchampion**.
 
-telegram : https://t.me/Champ_Studio
+Telegram: [https://t.me/Champ_Studio](https://t.me/Champ_Studio)
