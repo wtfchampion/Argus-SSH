@@ -69,7 +69,7 @@ APP_NAME = "Argus SSH"
 APP_ORG = "WTFChampion Studio"
 APP_VERSION = "1.4.0"
 
-TETHER_WALLET_ADDRESS = "TYourTetherTRC20WalletAddressHereXYZ"
+TETHER_WALLET_ADDRESS = "TVNrfdkd97J2swWMWkPfXNJNVgL8srkJon"
 
 # 1. FIXED DIRECTORY ISSUE: Cross-platform Documents directory mapping
 DOCS_DIR = Path.home() / "Documents" / "ssh_manager"
