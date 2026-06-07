@@ -1,4 +1,9 @@
 # Argus SSH
+<p align="center">
+  <img src="logo.png" width="150">
+</p>
+
+<h1 align="center">Argus SSH</h1>
 
 A modern PyQt5 desktop client for managing SSH-enabled Unix-like servers with a polished interface, built-in terminal access, SFTP file management, and remote Python process controls.
 
