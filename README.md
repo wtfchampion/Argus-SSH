@@ -25,7 +25,7 @@ A modern PyQt5 desktop client for managing SSH-enabled Unix-like servers with a 
 
 ## Screenshots
 
-_Add screenshots here after packaging or releasing the project._
+_Screenshots is coming soon._
 
 ## Project Structure
 
